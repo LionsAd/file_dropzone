@@ -65,6 +65,13 @@ function file_dropzone_ajax_upload() {
   $results = array();
   $index = 0;
 
+  if (empty($_POST['dropzone_actions'])) {
+    $_POST['dropzone_actions'][] = array(
+      'type' => 'legacy',
+      'fid' => -1,
+    );
+  }
+
   while (!empty($_POST['dropzone_actions'])) {
     $form = array();
     $form_state = array();
@@ -98,7 +105,13 @@ function file_dropzone_ajax_upload() {
     $remove_fid = FALSE;
     $attach_fid = FALSE;
 
-    $action = (array) json_decode(array_shift($_POST['dropzone_actions']));
+    $action = array_shift($_POST['dropzone_actions']);
+    if (!is_array($action)) {
+      $action = (array) json_decode($action);
+    }
+    if (empty($action)) {
+      return file_dropzone_error_exit(t('Error: Found empty action when trying to process files.'));
+    }
 
     switch ($action['type']) {
       case 'upload':
@@ -114,6 +127,11 @@ function file_dropzone_ajax_upload() {
       case 'remove':
         $remove_fid = $action['fid'];
         break;
+
+      case 'legacy':
+        // Intentionally do nothing.
+        break;
+
       default:
         return file_dropzone_error_exit(t('Unknown action type "@action" when trying to process files.', array('@action' => $action['type'])));
     }
