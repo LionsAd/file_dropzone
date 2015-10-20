@@ -1,0 +1,272 @@
+<?php
+
+/**
+ * @file
+ * File Dropzone for every file or media field element.
+ */
+
+/**
+ * Implements hook_menu().
+ */
+function file_dropzone_menu() {
+  $items['file_dropzone/ajax'] = array(
+    'page callback' => 'file_dropzone_ajax_upload',
+    'delivery callback' => 'ajax_deliver',
+    'access arguments' => array('access content'),
+    'theme callback' => 'ajax_base_page_theme',
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+/**
+ * Menu callback; Shared Ajax callback for file uploads and deletions.
+ *
+ * This rebuilds the form element for a particular field item. As long as the
+ * form processing is properly encapsulated in the widget element the form
+ * should rebuild correctly using FAPI without the need for additional callbacks
+ * or processing.
+ */
+function file_dropzone_ajax_upload() {
+  $form_parents = func_get_args();
+  $form_build_id = (string) array_pop($form_parents);
+
+  $lock_name = __FUNCTION__ . '_' . $form_build_id;
+
+  if (empty($_POST['form_build_id']) || $form_build_id != $_POST['form_build_id']) {
+    return file_dropzone_error_exit(t('An unrecoverable error occurred. The uploaded file likely exceeded the maximum file size (@size) that this server supports.', array('@size' => format_size(file_upload_max_size()))));
+  }
+
+  // Unset HTML IDs to ensure element is correctly returned.
+  unset($_POST['ajax_html_ids']);
+
+  // Ensure parallel uploads are handled correctly.
+  $retries = 0;
+  while (!lock_acquire($lock_name, 30)) {
+    $retries++;
+    if ($retries > 5) {
+      return file_dropzone_error_exit(t('An unrecoverable error occurred. There was a timeout while waiting for the upload lock. Please try again later.'), 'HTTP/1.0 500 Internal server error');
+    }
+
+    // Another request got the lock, wait for it to finish.
+    lock_wait($lock_name, 60);
+  }
+
+  // Rebuild the current state
+  list($form, $form_state, $form_id, $form_build_id, $commands) = ajax_get_form();
+  $form_state['input'] = FALSE;
+  $form_state['rebuild'] = TRUE;
+
+  drupal_process_form($form['#form_id'], $form, $form_state);
+
+  $old_values = $form_state['values'];
+
+  $results = array();
+  $index = 0;
+
+  while (!empty($_POST['dropzone_actions'])) {
+    $form = array();
+    $form_state = array();
+    $form_id = NULL;
+    $form_build_id = NULL;
+    $commands = array();
+
+    drupal_static_reset('drupal_html_id');
+
+    // Retrieve current form and form state.
+    list($form, $form_state, $form_id, $form_build_id, $commands) = ajax_get_form();
+
+    if (!$form) {
+      lock_release($lock_name);
+      return file_dropzone_error_exit(t('An unrecoverable error occurred. Use of this form has expired. Try reloading the page and submitting again.'));
+    }
+
+    // Get the current element and count the number of files.
+    $current_element = $form;
+    foreach ($form_parents as $parent) {
+      $current_element = $current_element[$parent];
+    }
+    $current_file_count = isset($current_element['#file_upload_delta']) ? $current_element['#file_upload_delta'] : 0;
+
+    // Now we are ready for processing.
+    $upload_name = implode('_', $form_parents);
+
+    $file_upload_name = $upload_name . '_' . $current_file_count;
+    $triggering_element_name = $file_upload_name . '_upload_button';
+
+    $remove_fid = FALSE;
+    $attach_fid = FALSE;
+
+    $action = (array) json_decode(array_shift($_POST['dropzone_actions']));
+
+    switch ($action['type']) {
+      case 'upload':
+        foreach ($_FILES['files'] as $key => $values) {
+          $_FILES['files'][$key][$file_upload_name] = array_shift($_FILES['files'][$key]['dropzone_files']);
+        }
+        break;
+
+      case 'attach':
+        $attach_fid = $action['fid'];
+        break;
+
+      case 'remove':
+        $remove_fid = $action['fid'];
+        break;
+      default:
+        return file_dropzone_error_exit(t('Unknown action type "@action" when trying to process files.', array('@action' => $action['type'])));
+    }
+
+    if (strpos($_POST['_triggering_element_name'], '_remove_button') === FALSE) {
+      $_POST['_triggering_element_name'] = $triggering_element_name;
+
+      // Update field items based on current form state.
+      $field_name = $current_element['#field_name'];
+      $langcode = $current_element['#language'];
+      $parents = $current_element['#field_parents'];
+
+      $items = $old_values[$field_name][$langcode];
+
+      if (!empty($items)) {
+        // Normalize the weight.
+        uasort($items, function($a, $b) {
+          $a_weight = (is_array($a) && isset($a['_weight'])) ? $a['_weight'] : 0;
+          $b_weight = (is_array($b) && isset($b['_weight'])) ? $b['_weight'] : 0;
+
+          if ($a_weight == $b_weight) {
+            return 0;
+          }
+
+          return ($a_weight < $b_weight) ? -1 : 1;
+        });
+
+        $items = array_filter($items, function($item) { if (empty($item['fid'])) { return FALSE; } return TRUE; });
+        $items = array_values($items);
+
+        foreach ($items as $delta => $item) {
+          $items[$delta] = array_intersect_key($item, array_flip(array('_weight', 'fid', 'display')));
+          $items[$delta]['_weight'] = $delta;
+        }
+
+        $items[] = array(
+          '_weight' => $current_file_count,
+          'fid' => 0,
+          'display' => 1,
+        );
+
+        $_POST[$field_name][$langcode] = $items;
+      }
+
+      if ($remove_fid) {
+        foreach ($_POST[$field_name][$langcode] as $delta => $item) {
+          if ($item['fid'] == $remove_fid) {
+            $triggering_element_name = $upload_name . '_' . $delta . '_remove_button';
+            $_POST['_triggering_element_name'] = $triggering_element_name;
+            $_POST['_triggering_element_value'] = t('Remove');
+            unset($_POST['files']);
+            foreach (array('name', 'type', 'tmp_name', 'error', 'size', 'orig_name') as $key) {
+              $_FILES['files'][$key][$file_upload_name] = '';
+              if ($key == 'error') {
+                $_FILES['files'][$key][$file_upload_name] = 4;
+              }
+              if ($key == 'size') {
+                $_FILES['files'][$key][$file_upload_name] = 0;
+              }
+            }
+          }
+        }
+      }
+
+      if ($attach_fid) {
+        $triggering_element_name = $file_upload_name . '_attach_button';
+
+        $_POST['_triggering_element_name'] = $triggering_element_name;
+        $_POST['_triggering_element_value'] = t('Attach');
+        $_POST['media'][$file_upload_name] = $attach_fid;
+      }
+    }
+
+    $_REQUEST = $_POST + $_GET;
+
+    // Update the form input with the new post values.
+    $form_state['input'] = $_POST;
+
+    // Process user input. $form and $form_state are modified in the process.
+    drupal_process_form($form['#form_id'], $form, $form_state);
+
+    $results[$index] = array(
+      'status' => 201,
+      'message' => 'OK',
+      'fid' => 0,
+    );
+
+    $messages = theme('status_messages', array('display' => 'error'));
+    if (!empty($messages)) {
+      $results[$index] = array(
+        'status' => 400,
+        'message' => $messages,
+        'fid' => -1,
+      );
+    }
+
+    $index++;
+  }
+
+  lock_release($lock_name);
+
+  // Retrieve the element to be rendered.
+  foreach ($form_parents as $parent) {
+    $form = $form[$parent];
+  }
+
+  // Add the special Ajax class if a new file was added.
+  if (isset($form['#file_upload_delta']) && $current_file_count < $form['#file_upload_delta']) {
+    $form[$current_file_count]['#attributes']['class'][] = 'ajax-new-content';
+  }
+  // Otherwise just add the new content class on a placeholder.
+  else {
+    $form['#suffix'] .= '<span class="ajax-new-content"></span>';
+  }
+
+  $output = theme('status_messages') . drupal_render($form);
+  $js = drupal_add_js();
+  $settings = call_user_func_array('array_merge_recursive', $js['settings']['data']);
+
+  $commands[] = ajax_command_replace(NULL, $output, $settings);
+  $commands[] = array( 'command' => 'dropzoneFiles', 'results' => $results );
+  return array('#type' => 'ajax', '#commands' => $commands);
+}
+
+function file_dropzone_error_exit($message, $status_header = 'HTTP/1.0 400 Bad request') {
+    header($status_header);
+    print strip_tags($message);
+    exit();
+}
+
+/**
+ * Process callback for the file managed field element.
+ */
+function file_dropzone_file_field_widget_process($element, &$form_state, $form) {
+  $field = field_widget_field($element, $form_state);
+
+  // Adjust the Ajax settings so that on upload and remove of any individual
+  // file, the entire group of file fields is updated together.
+  // Also add our file_dropzone menu callback.
+  // @todo Make cardinality 1 work.
+  if ($field['cardinality'] != 1) {
+    $parents = array_slice($element['#array_parents'], 0, -1);
+    $new_path = 'file_dropzone/ajax/' . implode('/', $parents) . '/' . $form['form_build_id']['#value'];
+    $field_element = drupal_array_get_nested_value($form, $parents);
+    $new_wrapper = $field_element['#id'] . '-ajax-wrapper';
+    foreach (element_children($element) as $key) {
+      if (isset($element[$key]['#ajax'])) {
+        $element[$key]['#ajax']['path'] = $new_path;
+        $element[$key]['#ajax']['wrapper'] = $new_wrapper;
+      }
+    }
+    unset($element['#prefix'], $element['#suffix']);
+  }
+
+  return $element;
+}
