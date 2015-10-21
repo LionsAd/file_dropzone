@@ -1,5 +1,5 @@
 name = File Dropzone
-description = Provides a dropzone for every multiple file or media widget.
+description = Provides a dropzone for every multiple file widget.
 package = Media
 core = 7.x
 
