@@ -34,6 +34,8 @@ function file_dropzone_field_widget_media_generic_form_alter(&$element, &$form_s
       '#pre_render' => array('file_dropzone_media_media_element_pre_render'),
     ));
   }
+
+  $element['#process'][] = 'file_dropzone_media_field_widget_process_multiple';
 }
 
 /**

@@ -21,6 +21,46 @@ function file_dropzone_menu() {
 }
 
 /**
+ * Implements hook_library().
+ */
+function file_dropzone_library() {
+  // Find the library path.
+  $library_path = module_exists('libraries') ? libraries_get_path('dropzone') : 'sites/all/libraries/dropzone';
+
+  // Add the dropzone library.
+  $libraries['dropzone'] = array(
+    'title' => 'Dropzone',
+    'website' => 'https://github.com/enyo/dropzone',
+    'version' => '4.2.0',
+    'js' => array(
+      $library_path . '/dropzone.js' => array(
+        'group' => 'JS_LIBRARY',
+      ),
+    ),
+    'css' => array(
+      $library_path . '/dropzone.css' => array(),
+    ),
+    'dependencies' => array(),
+  );
+
+  $path = drupal_get_path('module', 'file_dropzone');
+
+  $libraries['drupal_dropzone'] = array(
+    'title' => 'Drupal Dropzone integration',
+    'js' => array(
+      $path . '/js/dropzone.js' => array(
+        'group' => 'JS_LIBRARY',
+      ),
+    ),
+    'dependencies' => array(
+      array('file_dropzone', 'dropzone'),
+    ),
+  );
+
+  return $libraries;
+}
+
+/**
  * Menu callback; Shared Ajax callback for file uploads and deletions.
  *
  * This rebuilds the form element for a particular field item. As long as the
@@ -285,6 +325,18 @@ function file_dropzone_file_field_widget_process($element, &$form_state, $form) 
     }
     unset($element['#prefix'], $element['#suffix']);
   }
+
+  return $element;
+}
+
+/**
+ * An element #process callback for a group of media fields.
+ *
+ * Adds the drupal dropzone library and class.
+ */
+function file_dropzone_media_field_widget_process_multiple($element, &$form_state, $form) {
+  $element['#attached']['library'][] = array('file_dropzone', 'drupal_dropzone');
+  $element['#attributes']['class'][] = 'drupal-dropzone';
 
   return $element;
 }
