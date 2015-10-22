@@ -30,17 +30,24 @@
           addRemoveLinks: true,
           uploadMultiple: true,
           parallelUploads: 5,
-          //previewsContainer: '',
         };
 
-        /*if (dropzoneInstance) {
-          dropzoneInstance.previewsContainer = $(config.previewsContainer).get(0);
-        }*/
+        // Append empty .dz-message container to prevent dropzone from creating.
+        $field.find('.fieldset-wrapper').append('<div class="dz-default dz-message"></div>');
 
-        $(this).addClass('dropzone')
+        $(this).addClass('dropzone');
         $(this).dropzone(config);
-
         dropzoneInstance = this.dropzone;
+
+        // Create a canonical data store in the field.
+        var filesInfo = [];
+
+        $field.find('tbody tr').each(function() {
+          var $row = $(this);
+          filesInfo.push(Drupal.behaviors.drupalDropzone.getRowFileInfo($row));
+        });
+
+        $field.data('filesInfo', filesInfo);
 
         dropzoneInstance.on('successmultiple', function(files, response) {
           var results = [];
@@ -93,6 +100,11 @@
 
         dropzoneInstance.on('addedfile', function(file) {
           var fid = file.fid || 0;
+
+          if (fid > 0 && file.dropzoneAction == 'remove') {
+            $(file.previewElement).attr('drupal-dropzone-remove', '1');
+            $(file.previewElement).attr('drupal-dropzone-fid', file.fid);
+          }
 
           if (fid > 0 && file.preview) {
             var div = $('<div>').html(file.preview);
@@ -163,36 +175,36 @@
         var $field = $(this);
         var $form = $(this).closest('form');
 
+        $field.find('.fieldset-wrapper > .dz-message').remove();
+        $field.find('.fieldset-wrapper').append('<div class="dz-default dz-message" style="border-top: 2px solid #ccc; padding-top: 2em;"><span>' + Drupal.t('Drop files here to upload.') + '</span></div>');
+
+        // Setup the previews container.
+        var previewsContainer = $field.find('.dz-previews').get(0);
+        if (!previewsContainer) {
+          previewsContainer = $('<div class="dz-previews"></div>').get(0)
+          $field.find('.fieldset-wrapper:first').prepend(previewsContainer);
+
+          // Update dropzone with the new container.
+          dropzoneInstance.previewsContainer = previewsContainer;
+        }
+
+        Drupal.behaviors.drupalDropzone.synchronizeFiles(this);
+
         // Add a handler for remove button.
         $('input.file-dropzone-remove-button', $field).unbind('mousedown').bind('mousedown', function(ev) {
           ev.preventDefault();
 
           var $row = $(this).closest('tr');
           var $table = $row.closest('table');
-          var $input = $row.find('input.file-dropzone-fid');
-
-          var previewHtml = null;
-          var $preview = $row.find('.preview, .image-preview');
-          if ($preview.length > 0) {
-            previewHtml = $($preview.get(0)).html();
-          }
-          var label = 'file';
-
-          var $label = $input.parent().find('label');
-          if ($label.length == 0) {
-            $label = $input.parent().find('.file > a');
-          }
-          if ($label.length > 0) {
-            label = $label.text();
-          }
+          var fileInfo = Drupal.behaviors.drupalDropzone.getRowFileInfo($row);
 
           var file = {
             'type': 'application/octet-stream',
             'dropzoneAction': 'remove',
-            'name': 'Remove ' + label,
+            'name': 'Remove ' + fileInfo.label,
             'size': 1,
-            'fid': $input.attr('value'),
-            'preview': previewHtml,
+            'fid': fileInfo.fid,
+            'preview': fileInfo.preview,
             'status': Dropzone.ACCEPTED
           };
           dropzoneInstance.addFile(file);
@@ -221,6 +233,41 @@
         });
 
       });
+    },
+    synchronizeFiles: function(element) {
+      var dropzoneInstance = element.dropzone;
+
+      var $field = $(element);
+      var $form = $(element).closest('form');
+
+      var previewsContainer = $field.find('.dz-previews').get(0);
+    },
+    getRowFileInfo: function($row) {
+      var fileInfo = {
+        'label': 'file',
+        'fid': 0,
+        'preview': null,
+        'weight': null,
+      };
+
+      var $input = $row.find('input.file-dropzone-fid');
+
+      fileInfo.fid = $input.attr('value');
+
+      var $preview = $row.find('.preview, .image-preview').find('img').parent();
+      if ($preview.length > 0) {
+        fileInfo.preview = $($preview.get(0)).html();
+      }
+
+      var $label = $input.parent().find('label');
+      if ($label.length == 0) {
+        $label = $input.parent().find('.file > a');
+      }
+      if ($label.length > 0) {
+        fileInfo.label = $label.text();
+      }
+
+      return fileInfo;
     }
   }
 
