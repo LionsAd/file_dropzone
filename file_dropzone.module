@@ -257,7 +257,7 @@ function file_dropzone_ajax_upload() {
     $results[$index] = array(
       'status' => 201,
       'message' => 'OK',
-      'fid' => 0,
+      'fid' => $form_state['values'][$field_name][$langcode][$current_file_count]['fid'],
     );
 
     $messages = theme('status_messages', array('display' => 'error'));

@@ -57,6 +57,20 @@
           for (var i in results) {
             if (results[i].status == 201) {
               dropzoneInstance.removeFile(files[i]);
+
+              if (results[i].fid > 0) {
+                // Update the fid of the uploaded file element.
+                var filesInfo = $field.data('filesInfo');
+                for (var j=0; j < filesInfo.length; j++) {
+                  if (filesInfo[j].file && filesInfo[j].file == files[i]) {
+                    filesInfo[j].fid = results[i].fid;
+                    filesInfo[j].file = null;
+                    break;
+                  }
+                }
+
+                $field.data('filesInfo', filesInfo);
+              }
             }
             else {
               dropzoneInstance.emit("error", files[i], results[i].message, null);
@@ -97,6 +111,21 @@
           if (fid > 0 && file.dropzoneAction == 'remove') {
             $(file.previewElement).attr('drupal-dropzone-remove', '1');
             $(file.previewElement).attr('drupal-dropzone-fid', file.fid);
+          }
+          else {
+            // Add the file to the filesInfo.
+            var filesInfo = $field.data('filesInfo');
+            var fileInfo = {
+              'label': 'file',
+              'fid': fid,
+              'preview': null,
+              'weight': null,
+              'row': null,
+              'previewElement': null,
+              'file': file,
+            };
+            filesInfo.push(fileInfo);
+            $field.data('filesInfo', filesInfo);
           }
 
           if (fid > 0 && file.preview) {
@@ -175,7 +204,7 @@
         var previewsContainer = $field.find('.dz-previews').get(0);
         if (!previewsContainer) {
           previewsContainer = $('<div class="dz-previews"></div>').get(0)
-          $field.find('.fieldset-wrapper:first').prepend(previewsContainer);
+          $field.find('.fieldset-wrapper:first').append(previewsContainer);
 
           // Update dropzone with the new container.
           dropzoneInstance.previewsContainer = previewsContainer;
@@ -324,6 +353,7 @@
         'weight': null,
         'row': $row.get(0),
         'previewElement': null,
+        'file': null,
       };
 
       var $input = $row.find('input.file-dropzone-fid');
