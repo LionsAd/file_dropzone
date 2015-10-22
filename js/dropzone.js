@@ -40,14 +40,7 @@
         dropzoneInstance = this.dropzone;
 
         // Create a canonical data store in the field.
-        var filesInfo = [];
-
-        $field.find('tbody tr').each(function() {
-          var $row = $(this);
-          filesInfo.push(Drupal.behaviors.drupalDropzone.getRowFileInfo($row));
-        });
-
-        $field.data('filesInfo', filesInfo);
+        $field.data('filesInfo', Drupal.behaviors.drupalDropzone.getFilesInfo($field));
 
         dropzoneInstance.on('successmultiple', function(files, response) {
           var results = [];
@@ -71,10 +64,10 @@
             }
           }
 
-          var $previews = $field.find('.dz-preview').remove();
+          var $previews = $(dropzoneInstance.previewsContainer).find('.dz-preview').remove();
 
           options.success(response);
-          $previews.appendTo($field);
+          $previews.appendTo(dropzoneInstance.previewsContainer);
 
           if (uploads > 0) {
             $field.find('.browse').parent().hide();
@@ -195,7 +188,6 @@
           ev.preventDefault();
 
           var $row = $(this).closest('tr');
-          var $table = $row.closest('table');
           var fileInfo = Drupal.behaviors.drupalDropzone.getRowFileInfo($row);
 
           var file = {
@@ -209,9 +201,19 @@
           };
           dropzoneInstance.addFile(file);
 
-          // Update the table already to the new state.
-          $row.remove();
-          Drupal.tableDrag[$table.attr('id')].restripeTable();
+          // Remove the file from the filesInfo.
+          var filesInfo = $field.data('filesInfo');
+
+          for (var i=0; i < filesInfo.length; i++) {
+            if (filesInfo[i].fid == fileInfo.fid) {
+              filesInfo.splice(i, 1);
+              break;
+            }
+          }
+          $field.data('filesInfo', filesInfo);
+
+          Drupal.behaviors.drupalDropzone.synchronizeFiles($field.get(0));
+
         });
 
         $('input.file-dropzone-attach-button', $field).unbind('mousedown').bind('mousedown', function(ev) {
@@ -241,6 +243,78 @@
       var $form = $(element).closest('form');
 
       var previewsContainer = $field.find('.dz-previews').get(0);
+
+      var filesInfo = $field.data('filesInfo');
+      var newFilesInfo = Drupal.behaviors.drupalDropzone.getFilesInfo($field);
+
+      var mergedFilesInfo = [];
+      var $table;
+
+      // Find new and removed items.
+      for (var i=0; i < newFilesInfo.length; i++) {
+        var fileInfo = newFilesInfo[i];
+
+        var found = false;
+        var oldFileInfo = false;
+
+        for (var j=0; j < filesInfo.length; j++) {
+          oldFileInfo = filesInfo[j];
+          if (oldFileInfo.fid == fileInfo.fid) {
+            found = true;
+            break;
+          }
+        }
+
+        if (found) {
+          fileInfo.weight = oldFileInfo.weight;
+        }
+        else {
+          var $row = $(fileInfo.row);
+          $table = $row.closest('table');
+          $row.remove();
+          continue;
+        }
+        mergedFilesInfo.push(fileInfo);
+      }
+
+      if ($table !== undefined) {
+          Drupal.tableDrag[$table.attr('id')].restripeTable();
+      }
+
+      $field.data('filesInfo', mergedFilesInfo);
+
+/*      // Add each image to the list and associate the weight input id.
+      $field.find('tbody > tr').each(function() {
+        var $list_item = $('<div class="dz-preview"></div>');
+
+        // Clone the preview from the row.
+        var $thumbnail_preview = $(this).find('.preview').clone();
+
+        // Get the remove button name from the table row.
+        var $remove_name = $(this).find('input.remove').attr('name');
+        // Prepend a delete link with a data attribute containing this name, so
+        // it can be used to delegate to the real remove AJAX form input.
+        var fid = $(this).find('input.fid').attr('value');
+        $thumbnail_preview.prepend('<a style="display:block;" href="#" data-remove-name="' + $remove_name  + '" data-fid="' + fid + '">delete</a>');
+
+        $list_item.append($thumbnail_preview);
+
+        var $weight_name = $(this).find('.tabledrag-hide select').attr('name');
+        $list_item.attr('data-weight-name', $weight_name);
+
+        $(previewsContainer).append($list_item);
+      });*/
+    },
+    getFilesInfo: function($field) {
+      // Create a canonical data store in the field.
+      var filesInfo = [];
+
+      $field.find('tbody tr').each(function() {
+        var $row = $(this);
+        filesInfo.push(Drupal.behaviors.drupalDropzone.getRowFileInfo($row));
+      });
+
+      return filesInfo;
     },
     getRowFileInfo: function($row) {
       var fileInfo = {
@@ -248,6 +322,8 @@
         'fid': 0,
         'preview': null,
         'weight': null,
+        'row': $row.get(0),
+        'previewElement': null,
       };
 
       var $input = $row.find('input.file-dropzone-fid');
@@ -266,6 +342,7 @@
       if ($label.length > 0) {
         fileInfo.label = $label.text();
       }
+      fileInfo.weight = $row.find('.tabledrag-hide select').attr('value');
 
       return fileInfo;
     }
