@@ -1,0 +1,7 @@
+name = File Dropzone
+description = Provides a dropzone for every multiple file widget.
+package = Media
+core = 7.x
+
+dependencies[] = file
+version = 7.x-1.x-dev
