@@ -256,6 +256,7 @@ function file_dropzone_ajax_upload() {
 
     // Process user input. $form and $form_state are modified in the process.
     drupal_process_form($form['#form_id'], $form, $form_state);
+    $old_values = $form_state['values'];
 
     $results[$index] = array(
       'status' => 201,
