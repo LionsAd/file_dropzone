@@ -305,6 +305,12 @@
         }
         mergedFilesInfo.push(fileInfo);
       }
+      for (var i=0; i < filesInfo.length; i++) {
+        var fileInfo = filesInfo[i];
+        if (fileInfo.fid == 0) {
+          mergedFilesInfo.push(fileInfo);
+        }
+      }
 
       if ($table !== undefined) {
           Drupal.tableDrag[$table.attr('id')].restripeTable();
