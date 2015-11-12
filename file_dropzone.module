@@ -341,10 +341,35 @@ function file_dropzone_field_widget_form_alter(&$element, &$form_state, $context
 function file_dropzone_attach_file_value(&$element, &$input = FALSE, $form_state) {
   if ($input !== FALSE) {
     // Uploads take priority over all other values.
-    if ($file = media_attach_file($element)) {
+    if ($file = _file_dropzone_attach_file($element)) {
       $input['fid'] = $file->fid;
     }
   }
+}
+
+/**
+ * Attaches any files that have been referenced by a file element.
+ *
+ * @param $element
+ *   The FAPI element whose files are being attached.
+ *
+ * @return
+ *   The file object representing the file that was attached, or FALSE if no
+ *   file was attached.
+ */
+function _file_dropzone_attach_file($element) {
+  $upload_name = implode('_', $element['#parents']);
+  if (empty($_POST['media'][$upload_name])) {
+    return FALSE;
+  }
+
+  if (!$file = file_load($_POST['media'][$upload_name])) {
+    watchdog('file', 'The file upload failed. %upload', array('%upload' => $upload_name));
+    form_set_error($upload_name, t('The file in the !name field was unable to be uploaded.', array('!name' => $element['#title'])));
+    return FALSE;
+  }
+
+  return $file;
 }
 
 /**
