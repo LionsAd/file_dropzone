@@ -49,9 +49,12 @@ function file_dropzone_library() {
     'title' => 'Drupal Dropzone integration',
     'version' => '1.0.0',
     'js' => array(
-      $path . '/js/dropzone.js' => array(
+      $path . '/js/file_dropzone.js' => array(
         'group' => 'JS_LIBRARY',
       ),
+    ),
+    'css' => array(
+      $path . '/css/file_dropzone.css' => array(),
     ),
     'dependencies' => array(
       array('file_dropzone', 'dropzone'),

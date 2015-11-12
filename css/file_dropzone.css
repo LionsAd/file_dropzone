@@ -1,0 +1,15 @@
+/**
+ * @file
+ * File Dropzone CSS styles.
+ */
+
+/* Reset some dropzone.css styles. */
+.form-wrapper.dropzone {
+  border: initial;
+  background: initial;
+  padding: initial;
+}
+
+.form-wrapper.dropzone, .form-wrapper.dropzone * {
+  box-sizing: initial;
+}
