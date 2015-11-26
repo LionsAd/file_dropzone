@@ -102,6 +102,10 @@ function file_dropzone_ajax_upload() {
   $form_state['input'] = FALSE;
   $form_state['rebuild'] = TRUE;
 
+  // Allow other modules to alter the form before submission.
+  drupal_alter('file_dropzone_process_form', $form, $form_state);
+
+  // Process the form.
   drupal_process_form($form['#form_id'], $form, $form_state);
 
   $old_values = $form_state['values'];
