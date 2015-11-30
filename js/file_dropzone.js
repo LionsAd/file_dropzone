@@ -259,7 +259,7 @@
             'dropzoneAction': 'attach',
             'name': 'Attach file',
             'size': 1,
-            'fid': $input.attr('value'),
+            'fid': $input.val(),
             'status': Dropzone.ACCEPTED
           };
 
@@ -367,7 +367,7 @@
 
       var $input = $row.find('input.file-dropzone-fid');
 
-      fileInfo.fid = $input.attr('value');
+      fileInfo.fid = $input.val();
 
       var $preview = $row.find('.preview, .image-preview').find('img').parent();
       if ($preview.length > 0) {
@@ -381,7 +381,7 @@
       if ($label.length > 0) {
         fileInfo.label = $label.text();
       }
-      fileInfo.weight = $row.find('.tabledrag-hide select').attr('value');
+      fileInfo.weight = $row.find('.tabledrag-hide select').val();
 
       return fileInfo;
     }
