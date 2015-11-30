@@ -250,6 +250,9 @@
 
           var $row = $(this).closest('tr');
           var $input = $row.find('input.file-dropzone-upload-fid');
+          if ($input.length == 0) {
+            $input = $(this).siblings('input.file-dropzone-upload-fid');
+          }
 
           var file = {
             'type': 'application/octet-stream',
