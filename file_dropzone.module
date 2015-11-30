@@ -214,7 +214,7 @@ function file_dropzone_ajax_upload() {
 
         $items[] = array(
           '_weight' => $current_file_count,
-          'fid' => 0,
+          'fid' => '',
           'display' => 1,
         );
 
