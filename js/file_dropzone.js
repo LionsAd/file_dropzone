@@ -58,7 +58,7 @@
             if (results[i].status == 201) {
               dropzoneInstance.removeFile(files[i]);
 
-              if (results[i].fid > 0) {
+              if (results[i].fid != '') {
                 // Update the fid of the uploaded file element.
                 var filesInfo = $field.data('filesInfo');
                 for (var j=0; j < filesInfo.length; j++) {
@@ -90,7 +90,7 @@
 
         dropzoneInstance.on('drop', function(e) {
           fid = e.dataTransfer.getData('fid');
-          if (fid > 0) {
+          if (fid != '') {
             var file = {
               'type': 'application/octet-stream',
               'dropzoneAction': 'attach',
@@ -106,9 +106,9 @@
         });
 
         dropzoneInstance.on('addedfile', function(file) {
-          var fid = file.fid || 0;
+          var fid = file.fid || '';
 
-          if (fid > 0 && file.dropzoneAction == 'remove') {
+          if (fid != '' && file.dropzoneAction == 'remove') {
             $(file.previewElement).attr('drupal-dropzone-remove', '1');
             $(file.previewElement).attr('drupal-dropzone-fid', file.fid);
           }
@@ -128,7 +128,7 @@
             $field.data('filesInfo', filesInfo);
           }
 
-          if (fid > 0 && file.preview) {
+          if (fid != '' && file.preview) {
             var div = $('<div>').html(file.preview);
             var img = div.find('img').get(0);
             // Defer call.
@@ -159,11 +159,11 @@
           xhr.url = options.url;
 
           for (var i=0; i < files.length; i++) {
-            var fid = files[i].fid || 0;
+            var fid = files[i].fid || '';
             var $preview = $(files[i].previewElement);
             $preview.find('.dz-remove').text('');
 
-            if (fid > 0) {
+            if (fid != '') {
               var action = {
                 'type': files[i].dropzoneAction,
                 'fid': fid,
@@ -250,13 +250,16 @@
 
           var $row = $(this).closest('tr');
           var $input = $row.find('input.file-dropzone-upload-fid');
+          if ($input.length == 0) {
+            $input = $(this).siblings('input.file-dropzone-upload-fid');
+          }
 
           var file = {
             'type': 'application/octet-stream',
             'dropzoneAction': 'attach',
             'name': 'Attach file',
             'size': 1,
-            'fid': $input.attr('value'),
+            'fid': $input.val(),
             'status': Dropzone.ACCEPTED
           };
 
@@ -354,7 +357,7 @@
     getRowFileInfo: function($row) {
       var fileInfo = {
         'label': 'file',
-        'fid': 0,
+        'fid': '',
         'preview': null,
         'weight': null,
         'row': $row.get(0),
@@ -364,7 +367,7 @@
 
       var $input = $row.find('input.file-dropzone-fid');
 
-      fileInfo.fid = $input.attr('value');
+      fileInfo.fid = $input.val();
 
       var $preview = $row.find('.preview, .image-preview').find('img').parent();
       if ($preview.length > 0) {
@@ -378,7 +381,7 @@
       if ($label.length > 0) {
         fileInfo.label = $label.text();
       }
-      fileInfo.weight = $row.find('.tabledrag-hide select').attr('value');
+      fileInfo.weight = $row.find('.tabledrag-hide select').val();
 
       return fileInfo;
     }
