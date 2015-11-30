@@ -254,12 +254,20 @@
             $input = $(this).siblings('input.file-dropzone-upload-fid');
           }
 
+          var name = $input.data('file-dropzone-name');
+          if (name == '') {
+            name = 'file';
+          }
+          var preview = $input.data('file-dropzone-preview');
+
           var file = {
             'type': 'application/octet-stream',
             'dropzoneAction': 'attach',
             'name': 'Attach file',
+            'name': 'Attach ' + name,
             'size': 1,
             'fid': $input.val(),
+            'preview': preview,
             'status': Dropzone.ACCEPTED
           };
 
