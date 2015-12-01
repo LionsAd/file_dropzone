@@ -160,8 +160,10 @@ function file_dropzone_ajax_upload() {
 
     switch ($action['type']) {
       case 'upload':
-        foreach ($_FILES['files'] as $key => $values) {
-          $_FILES['files'][$key][$file_upload_name] = array_shift($_FILES['files'][$key]['dropzone_files']);
+        if (!empty($_FILES['files'])) {
+          foreach ($_FILES['files'] as $key => $values) {
+            $_FILES['files'][$key][$file_upload_name] = array_shift($_FILES['files'][$key]['dropzone_files']);
+          }
         }
         break;
 
@@ -181,14 +183,13 @@ function file_dropzone_ajax_upload() {
         return file_dropzone_error_exit(t('Unknown action type "@action" when trying to process files.', array('@action' => $action['type'])));
     }
 
+    // Update field items based on current form state.
+    $field_name = $current_element['#field_name'];
+    $langcode = $current_element['#language'];
+    $parents = $current_element['#field_parents'];
+
     if ($action['type'] != 'legacy') {
       $_POST['_triggering_element_name'] = $triggering_element_name;
-
-      // Update field items based on current form state.
-      $field_name = $current_element['#field_name'];
-      $langcode = $current_element['#language'];
-      $parents = $current_element['#field_parents'];
-
       $items = $old_values[$field_name][$langcode];
 
       if (!empty($items)) {
@@ -269,7 +270,7 @@ function file_dropzone_ajax_upload() {
     $results[$index] = array(
       'status' => 201,
       'message' => 'OK',
-      'fid' => $form_state['values'][$field_name][$langcode][$current_file_count]['fid'],
+      'fid' => !empty($form_state['values'][$field_name][$langcode][$current_file_count]['fid']) ? $form_state['values'][$field_name][$langcode][$current_file_count]['fid'] : '',
     );
 
     $messages = theme('status_messages', array('display' => 'error'));
