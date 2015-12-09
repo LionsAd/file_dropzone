@@ -282,6 +282,17 @@ function file_dropzone_ajax_upload() {
       );
     }
 
+    // Cleanup $_FILES and $_POST from current round values. This prevents
+    // a file from being created again and again (though with the same fid).
+    if ($action['type'] == 'upload') {
+      foreach ($_FILES['files'] as $key => $values) {
+        unset($_FILES['files'][$key][$file_upload_name]);
+      }
+    }
+    elseif ($action['type'] == 'attach') {
+      unset($_POST['media'][$file_upload_name]);
+    }
+
     $index++;
   }
 
