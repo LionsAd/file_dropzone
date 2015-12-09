@@ -13,7 +13,14 @@
     attach: function (context, settings) {
       Dropzone.autoDiscover = false;
 
-      $('.drupal-dropzone', context).parents('.form-wrapper').once('drupal-dropzone').each(function() {
+      // Find the next container outside of the ajax-wrapper we are in.
+      //
+      // Note: This intentionally uses .parents('.form-wrapper') as there can
+      //       be a .form-wrapper at the same level, which however is inside
+      //       the ajax-wrapper.
+      var $dropzoneParentContainer = $('.drupal-dropzone', context).parents('.form-wrapper');
+
+      $dropzoneParentContainer.once('drupal-dropzone').each(function() {
         var dropzoneInstance;
 
         var $field = $(this);
@@ -202,7 +209,7 @@
         });
       });
 
-      $('.drupal-dropzone', context).parents('.form-wrapper').each(function() {
+      $dropzoneParentContainer.each(function() {
         var dropzoneInstance = this.dropzone;
 
         var $field = $(this);
