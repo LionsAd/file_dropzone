@@ -461,6 +461,19 @@ function file_dropzone_file_field_widget_process($element, &$form_state, $form) 
     unset($element['#prefix'], $element['#suffix']);
   }
 
+  // Pass scalar upload validators as data- attributes - if in the passed list.
+  $passed_upload_validators = variable_get('file_dropzone_passed_upload_validators', array('file_validate_extensions', 'file_validate_size'));
+
+  foreach ($element['#upload_validators'] as $key => $value) {
+    if (!isset($value[0]) || !is_scalar($value[0])) {
+      continue;
+    }
+    if (in_array($key, $passed_upload_validators)) {
+      // Deliberately pass $value as is and not just index 0.
+      $element['fid']['#attributes']['data-' . drupal_html_class($key)] = $value;
+    }
+  }
+
   return $element;
 }
 

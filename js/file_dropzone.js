@@ -21,6 +21,7 @@
         var uploads = 0;
 
         var id = $(this).find('.file-dropzone-upload-button').attr('id');
+        var $fid = $('#' + id).siblings('input.file-dropzone-fid');
         var options = Drupal.ajax[id].options;
         var beforeSerialize = options.beforeSerialize;
 
@@ -31,6 +32,16 @@
           uploadMultiple: true,
           parallelUploads: 5,
         };
+
+        var fileValidateSize = $fid.data('file-validate-size');
+        if (fileValidateSize) {
+          config.maxFilesize = fileValidateSize / (1024 * 1024);
+        }
+
+        var fileValidateExtensions = $fid.data('file-validate-extensions');
+        if (fileValidateExtensions) {
+          config.acceptedFiles = '.' + fileValidateExtensions.replace(/ /g,",.") + ',application/x-drupal-dropzone';
+        }
 
         // Append empty .dz-message container to prevent dropzone from creating.
         $field.find('.fieldset-wrapper').append('<div class="dz-default dz-message"></div>');
@@ -92,7 +103,7 @@
           fid = e.dataTransfer.getData('fid');
           if (fid != '') {
             var file = {
-              'type': 'application/octet-stream',
+              'type': 'application/x-drupal-dropzone',
               'dropzoneAction': 'attach',
               'name': 'Attach ' + e.dataTransfer.getData('name'),
               'size': 1,
@@ -220,7 +231,7 @@
           var fileInfo = Drupal.behaviors.drupalDropzone.getRowFileInfo($row);
 
           var file = {
-            'type': 'application/octet-stream',
+            'type': 'application/x-drupal-dropzone',
             'dropzoneAction': 'remove',
             'name': 'Remove ' + fileInfo.label,
             'size': 1,
@@ -261,7 +272,7 @@
           var preview = $input.data('file-dropzone-preview');
 
           var file = {
-            'type': 'application/octet-stream',
+            'type': 'application/x-drupal-dropzone',
             'dropzoneAction': 'attach',
             'name': 'Attach file',
             'name': 'Attach ' + name,
