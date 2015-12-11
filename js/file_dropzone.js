@@ -15,10 +15,10 @@
 
       // Find the next container outside of the ajax-wrapper we are in.
       //
-      // Note: This intentionally uses .parents('.form-wrapper') as there can
-      //       be a .form-wrapper at the same level, which however is inside
-      //       the ajax-wrapper.
-      var $dropzoneParentContainer = $('.drupal-dropzone', context).parents('.form-wrapper');
+      // Note: This intentionally uses .parent().closest('.form-wrapper') as
+      //       there can be a .form-wrapper at the same level, which however is
+      //       inside the ajax-wrapper.
+      var $dropzoneParentContainer = $('.drupal-dropzone', context).parent().closest('.form-wrapper');
 
       $dropzoneParentContainer.once('drupal-dropzone').each(function() {
         var dropzoneInstance;
