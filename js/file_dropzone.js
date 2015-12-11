@@ -215,9 +215,6 @@
         var $field = $(this);
         var $form = $(this).closest('form');
 
-        $field.find('.fieldset-wrapper > .dz-message').remove();
-        $field.find('.fieldset-wrapper').append('<div class="dz-default dz-message" style="border-top: 2px solid #ccc; padding-top: 2em;"><span>' + Drupal.t('Drop files here to upload.') + '</span></div>');
-
         // Setup the previews container.
         var previewsContainer = $field.find('.dz-previews').get(0);
         if (!previewsContainer) {
@@ -227,6 +224,11 @@
           // Update dropzone with the new container.
           dropzoneInstance.previewsContainer = previewsContainer;
         }
+
+        // Replace the message container with a fresh copy. This goes last so
+        // it consistently appears after the preview container.
+        $field.find('.fieldset-wrapper > .dz-message').remove();
+        $field.find('.fieldset-wrapper').append('<div class="dz-default dz-message" style="border-top: 2px solid #ccc; padding-top: 2em;"><span>' + Drupal.t('Drop files here to upload.') + '</span></div>');
 
         Drupal.behaviors.drupalDropzone.synchronizeFiles(this);
 
