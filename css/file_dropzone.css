@@ -23,3 +23,8 @@
   min-width: 300px;
   top: 145px;
 }
+
+.dropzone .dz-message {
+  border-top: 2px solid #ccc;
+  padding-top: 2em;
+}
