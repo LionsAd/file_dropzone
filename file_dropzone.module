@@ -401,6 +401,8 @@ function file_dropzone_attach_widget_process($element, &$form_state, $form) {
   $element['upload_button']['#attributes']['class'][] = 'file-dropzone-upload-button';
   $element['remove_button']['#attributes']['class'][] = 'file-dropzone-remove-button';
   $element['fid']['#attributes']['class'][] = 'file-dropzone-fid';
+  $element['upload']['#attributes']['class'][] = 'file-dropzone-upload-element';
+  $element['upload']['#attributes']['class'][] = 'file-dropzone-browse-element';
 
   $ajax_settings = array(
     'path' => $element['upload_button']['#ajax']['path'],

@@ -56,6 +56,7 @@ function file_dropzone_media_file_managed_file_value(&$element, &$input = FALSE,
 function file_dropzone_media_media_field_widget_process($element, &$form_state, $form) {
 
   $element['upload']['#attributes']['class'][] = 'file-dropzone-upload-fid';
+  $element['upload']['#attributes']['class'][] = 'file-dropzone-browse-element';
   $element['attach_button']['#attributes']['class'][] = 'file-dropzone-attach-button';
   $element['remove_button']['#attributes']['class'][] = 'file-dropzone-remove-button';
   $element['fid']['#attributes']['class'][] = 'file-dropzone-fid';

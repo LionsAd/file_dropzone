@@ -102,7 +102,7 @@
           $previews.appendTo(dropzoneInstance.previewsContainer);
 
           if (uploads > 0) {
-            $field.find('.browse').parent().hide();
+            $field.find('.file-dropzone-browse-element').parent().hide();
           }
         });
 
@@ -158,7 +158,7 @@
 
         dropzoneInstance.on('sendingmultiple', function(files, xhr, formData) {
           if (uploads == 0) {
-            $field.find('.browse').parent().hide();
+            $field.find('.file-dropzone-browse-element').parent().hide();
           }
           uploads++;
 
@@ -204,7 +204,7 @@
           uploads--;
 
           if (uploads == 0) {
-            $field.find('.browse').parent().show();
+            $field.find('.file-dropzone-browse-element').parent().show();
           }
         });
       });
@@ -294,6 +294,21 @@
           dropzoneInstance.addFile(file);
         });
 
+        $('input.file-dropzone-upload-button', $field).unbind('mousedown').bind('mousedown', function(ev) {
+          ev.preventDefault();
+
+          var $row = $(this).closest('tr');
+
+          var $input = $row.find('input.file-dropzone-upload-element');
+          if ($input.length == 0) {
+            $input = $(this).siblings('input.file-dropzone-upload-element');
+          }
+
+          var files = $input.get(0).files;
+          if (files.length > 0) {
+            dropzoneInstance.addFile(files[0]);
+          }
+        });
       });
     },
     synchronizeFiles: function(element) {
