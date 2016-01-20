@@ -333,6 +333,12 @@ function file_dropzone_ajax_upload() {
     // Update the form input with the new post values.
     $form_state['input'] = $input;
 
+    // Remove validation errors for the whole form and record them per file
+    // instead.
+    $form[$field_name]['#element_validate'][] = 'file_dropzone_remove_validation_errors';
+    $form_state['file_dropzone_errors'] = [];
+    $form_state['file_dropzone_multiple_file_upload_names'] = $multiple_file_upload_names;
+
     // Process user input. $form and $form_state are modified in the process.
     drupal_process_form($form['#form_id'], $form, $form_state);
 
@@ -345,21 +351,37 @@ function file_dropzone_ajax_upload() {
     cache_set('form_state_' . $form_build_id, $cache->data, 'cache_form', $cache->expire);
 
     $messages = theme('status_messages', array('display' => 'error'));
+
+    // If there are still messages left, then all files failed to upload.
     if (!empty($messages)) {
-      $results[] = array(
-        'status' => 400,
-        'message' => $messages,
-        'fid' => -1,
-      );
+      $items_processed = $is_multiple_upload ? $action['upload_count'] : 1;
+      for ($i = 0; $i < $items_processed; $i++) {
+        $results[] = array(
+          'status' => 400,
+          'message' => $messages,
+          'fid' => -1,
+        );
+      }
     }
     else {
       $items_processed = $is_multiple_upload ? $action['upload_count'] : 1;
       for ($i = 0; $i < $items_processed; $i++) {
-        $results[] = array(
-          'status' => 201,
-          'message' => 'OK',
-          'fid' => !empty($form_state['values'][$field_name][$langcode][$current_file_count + $i]['fid']) ? $form_state['values'][$field_name][$langcode][$current_file_count + $i]['fid'] : '',
-        );
+        if (!empty($form_state['file_dropzone_errors'][$i])) {
+          drupal_set_message($form_state['file_dropzone_errors'][$i], 'error');
+          $message = theme('status_messages', array('display' => 'error'));
+          $results[$i] = array(
+            'status' => 400,
+            'message' => $message,
+            'fid' => -1,
+          );
+        }
+        else {
+          $results[$i] = array(
+            'status' => 201,
+            'message' => 'OK',
+            'fid' => !empty($form_state['values'][$field_name][$langcode][$current_file_count + $i]['fid']) ? $form_state['values'][$field_name][$langcode][$current_file_count + $i]['fid'] : '',
+          );
+        }
       }
     }
 
@@ -406,6 +428,40 @@ function file_dropzone_error_exit($message, $status_header = 'HTTP/1.0 400 Bad r
     header($status_header);
     print strip_tags($message);
     exit();
+}
+
+/**
+ * Clears an error against one form element.
+ *
+ * @param $name
+ *   The name of the form element.
+ */
+function _file_dropzone_form_unset_error($name) {
+  $errors = &drupal_static('form_set_error', array());
+  $removed_messages = array();
+  if (isset($errors[$name])) {
+    $removed_messages[] = $errors[$name];
+    unset($errors[$name]);
+  }
+  $_SESSION['messages']['error'] = array_diff($_SESSION['messages']['error'], $removed_messages);
+  if (empty($_SESSION['messages']['error'])) {
+    unset($_SESSION['messages']['error']);
+  }
+}
+
+/**
+ * Element validation callback to remove errors related to file uploads.
+ */
+function file_dropzone_remove_validation_errors(&$elements, &$form_state, $form) {
+  $errors = form_get_errors();
+  foreach ($form_state['file_dropzone_multiple_file_upload_names'] as $index => $file_upload_name) {
+    if (isset($errors[$file_upload_name])) {
+      // Remove the error, so other files are attached properly.
+      _file_dropzone_form_unset_error($file_upload_name);
+      // Store the error in a special form state entry.
+      $form_state['file_dropzone_errors'][$index] = $errors[$file_upload_name];
+    }
+  }
 }
 
 /**
