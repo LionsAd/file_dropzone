@@ -97,18 +97,7 @@ function file_dropzone_ajax_upload() {
     lock_wait($lock_name, 60);
   }
 
-  // Rebuild the current state
-  list($form, $form_state, $form_id, $form_build_id, $commands) = ajax_get_form();
-  $form_state['input'] = FALSE;
-  $form_state['rebuild'] = TRUE;
-
-  // Process the form.
-  drupal_process_form($form['#form_id'], $form, $form_state);
-
-  $old_values = $form_state['values'];
-
   $results = array();
-  $index = 0;
 
   if (empty($_POST['dropzone_actions'])) {
     $_POST['dropzone_actions'][] = array(
@@ -117,12 +106,41 @@ function file_dropzone_ajax_upload() {
     );
   }
 
+  // Collect all dropzone actions to be processed during this request. In the
+  // most common case (where dropzone is configured to automatically process
+  // items as soon as they are added to the queue) the only way to submit
+  // multiple actions to the server in the same request is if the user uploads
+  // several files at the same time. Since Drupal can process multiple file
+  // uploads at once, the code in this function optimizes performance for that
+  // case by ensuring they are all handled in the same drupal_process_form()
+  // call.
+  $dropzone_actions = array();
+  $last_action_type = NULL;
   while (!empty($_POST['dropzone_actions'])) {
-    $form = array();
-    $form_state = array();
-    $form_id = NULL;
-    $form_build_id = NULL;
-    $commands = array();
+    $action = array_shift($_POST['dropzone_actions']);
+    if (!is_array($action)) {
+      $action = (array) json_decode($action);
+    }
+    if (empty($action)) {
+      lock_release($lock_name);
+      return file_dropzone_error_exit(t('Error: Found empty action when trying to process files.'));
+    }
+    if ($action['type'] == 'upload') {
+      $action['upload_count'] = 1;
+      // Handle the multiple upload case by combining them into one action.
+      if ($last_action_type == 'upload') {
+        $action = array_pop($dropzone_actions);
+        $action['upload_count']++;
+      }
+    }
+    $last_action_type = $action['type'];
+    $dropzone_actions[] = $action;
+  }
+
+  // Process each action by submitting the form and collecting the results.
+  foreach ($dropzone_actions as $action) {
+    // Multiple uploads will get special handling throughout this function.
+    $is_multiple_upload = $action['type'] == 'upload' && $action['upload_count'] > 1;
 
     drupal_static_reset('drupal_html_id');
 
@@ -141,28 +159,46 @@ function file_dropzone_ajax_upload() {
     }
     $current_file_count = isset($current_element['#file_upload_delta']) ? $current_element['#file_upload_delta'] : 0;
 
+    // Get information about the current element being processed.
+    $field_name = $current_element['#field_name'];
+    $langcode = $current_element['#language'];
+
+    // For multiple uploads, add extra fields to the form to handle the extra
+    // files that are being uploaded. (Drupal file upload widgets normally only
+    // contain one extra form element to allow a single file to be uploaded.)
+    if ($is_multiple_upload) {
+      for ($i = 1; $i < $action['upload_count']; $i++) {
+        $form[$field_name][$langcode][$current_file_count + $i] = $form[$field_name][$langcode][$current_file_count +$i - 1];
+        $form[$field_name][$langcode][$current_file_count + $i]['#weight']++;
+      }
+    }
+
     // Now we are ready for processing.
     $upload_name = implode('_', $form_parents);
 
     $file_upload_name = $upload_name . '_' . $current_file_count;
     $triggering_element_name = $file_upload_name . '_upload_button';
 
+    // Get the list of file upload names, for areas of the code that need to
+    // handle the possibility of multiple file uploads at once.
+    $multiple_file_upload_names = array($file_upload_name);
+    if ($is_multiple_upload) {
+      for ($i = 1; $i < $action['upload_count']; $i++) {
+        $multiple_file_upload_names[] = $upload_name . '_' . ($current_file_count + $i);
+      }
+    }
+
     $remove_fid = FALSE;
     $attach_fid = FALSE;
-
-    $action = array_shift($_POST['dropzone_actions']);
-    if (!is_array($action)) {
-      $action = (array) json_decode($action);
-    }
-    if (empty($action)) {
-      return file_dropzone_error_exit(t('Error: Found empty action when trying to process files.'));
-    }
 
     switch ($action['type']) {
       case 'upload':
         if (!empty($_FILES['files'])) {
+          // Move all uploaded files to the correct place in the $_FILES array.
           foreach ($_FILES['files'] as $key => $values) {
-            $_FILES['files'][$key][$file_upload_name] = array_shift($_FILES['files'][$key]['dropzone_files']);
+            foreach ($multiple_file_upload_names as $multiple_file_upload_name) {
+              $_FILES['files'][$key][$multiple_file_upload_name] = array_shift($_FILES['files'][$key]['dropzone_files']);
+            }
           }
         }
         break;
@@ -180,18 +216,50 @@ function file_dropzone_ajax_upload() {
         break;
 
       default:
+        lock_release($lock_name);
         return file_dropzone_error_exit(t('Unknown action type "@action" when trying to process files.', array('@action' => $action['type'])));
     }
 
-    // Update field items based on current form state.
-    $field_name = $current_element['#field_name'];
-    $langcode = $current_element['#language'];
-    $parents = $current_element['#field_parents'];
-
     if ($action['type'] != 'legacy') {
       $_POST['_triggering_element_name'] = $triggering_element_name;
-      $items = $old_values[$field_name][$langcode];
 
+      // Make sure $_POST is up to date with the current list of items for this
+      // field. For example, if one dropzone action is taken immediately after
+      // another, the $_POST data sent with the second will not reflect the
+      // additions or deletions made in the first, if the first submission is
+      // not complete yet. The code here ensures the correct items are always
+      // used.
+      if (isset($form_state['file_dropzone']['submitted_values'][$field_name][$langcode])) {
+        // If there was a previous submission of this form, use the list of
+        // submitted items from that. But any properties of the item (for
+        // example, drag-and-drop weights) should be based on the current form
+        // submission. This means that a dropzone action followed by a
+        // non-dropzone action (such as drag-and-drop) followed by another
+        // dropzone action will preserve the changes made via the non-dropzone
+        // action as well.
+        $items = $form_state['file_dropzone']['submitted_values'][$field_name][$langcode];
+        $input = $form_state['input'][$field_name][$langcode];
+        foreach ($items as &$item) {
+          if (is_array($item) && isset($item['fid'])) {
+            foreach ($input as $key => $value) {
+              if (is_array($value) && isset($value['fid']) && $value['fid'] == $item['fid']) {
+                $item = $value;
+                // Stop checking this item and unset it from the input once a
+                // match has been found. If the same file is referenced more
+                // than once, this allows each copy to have its own independent
+                // properties (for example, drag-and-drop weight).
+                unset($input[$key]);
+                continue 2;
+              }
+            }
+          }
+        }
+      }
+      else {
+        // Otherwise, this is the first submission, so use the values that were
+        // submitted this time.
+        $items = $form_state['input'][$field_name][$langcode];
+      }
       if (!empty($items)) {
         // Normalize the weight.
         uasort($items, function($a, $b) {
@@ -213,11 +281,14 @@ function file_dropzone_ajax_upload() {
           $items[$delta]['_weight'] = $delta;
         }
 
-        $items[] = array(
-          '_weight' => $current_file_count,
-          'fid' => '',
-          'display' => 1,
-        );
+        $items_to_add = $is_multiple_upload ? $action['upload_count'] : 1;
+        for ($i = 0; $i < $items_to_add; $i++) {
+          $items[] = array(
+            '_weight' => $current_file_count + $i,
+            'fid' => '',
+            'display' => 1,
+          );
+        }
 
         $_POST[$field_name][$langcode] = $items;
       }
@@ -262,38 +333,70 @@ function file_dropzone_ajax_upload() {
     // Update the form input with the new post values.
     $form_state['input'] = $input;
 
+    // Remove validation errors for the whole form and record them per file
+    // instead.
+    $form[$field_name]['#element_validate'][] = 'file_dropzone_remove_validation_errors';
+    $form_state['file_dropzone_errors'] = [];
+    $form_state['file_dropzone_multiple_file_upload_names'] = $multiple_file_upload_names;
+
     // Process user input. $form and $form_state are modified in the process.
     drupal_process_form($form['#form_id'], $form, $form_state);
 
-    $old_values = $form_state['values'];
-
-    $results[$index] = array(
-      'status' => 201,
-      'message' => 'OK',
-      'fid' => !empty($form_state['values'][$field_name][$langcode][$current_file_count]['fid']) ? $form_state['values'][$field_name][$langcode][$current_file_count]['fid'] : '',
-    );
+    // Cache the submitted values for this field in $form_state so they can be
+    // used the next time an Ajax request is made. Note that this cannot be
+    // done before drupal_process_form() is called above since the values won't
+    // be set yet at that point.
+    $cache = cache_get('form_state_' . $form_build_id, 'cache_form');
+    $cache->data['file_dropzone']['submitted_values'][$field_name][$langcode] = $form_state['values'][$field_name][$langcode];
+    cache_set('form_state_' . $form_build_id, $cache->data, 'cache_form', $cache->expire);
 
     $messages = theme('status_messages', array('display' => 'error'));
+
+    // If there are still messages left, then all files failed to upload.
     if (!empty($messages)) {
-      $results[$index] = array(
-        'status' => 400,
-        'message' => $messages,
-        'fid' => -1,
-      );
+      $items_processed = $is_multiple_upload ? $action['upload_count'] : 1;
+      for ($i = 0; $i < $items_processed; $i++) {
+        $results[] = array(
+          'status' => 400,
+          'message' => $messages,
+          'fid' => -1,
+        );
+      }
+    }
+    else {
+      $items_processed = $is_multiple_upload ? $action['upload_count'] : 1;
+      for ($i = 0; $i < $items_processed; $i++) {
+        if (!empty($form_state['file_dropzone_errors'][$i])) {
+          drupal_set_message($form_state['file_dropzone_errors'][$i], 'error');
+          $message = theme('status_messages', array('display' => 'error'));
+          $results[$i] = array(
+            'status' => 400,
+            'message' => $message,
+            'fid' => -1,
+          );
+        }
+        else {
+          $results[$i] = array(
+            'status' => 201,
+            'message' => 'OK',
+            'fid' => !empty($form_state['values'][$field_name][$langcode][$current_file_count + $i]['fid']) ? $form_state['values'][$field_name][$langcode][$current_file_count + $i]['fid'] : '',
+          );
+        }
+      }
     }
 
     // Cleanup $_FILES and $_POST from current round values. This prevents
     // a file from being created again and again (though with the same fid).
     if ($action['type'] == 'upload') {
       foreach ($_FILES['files'] as $key => $values) {
-        unset($_FILES['files'][$key][$file_upload_name]);
+        foreach ($multiple_file_upload_names as $multiple_file_upload_name) {
+          unset($_FILES['files'][$key][$multiple_file_upload_name]);
+        }
       }
     }
     elseif ($action['type'] == 'attach') {
       unset($_POST['media'][$file_upload_name]);
     }
-
-    $index++;
   }
 
   lock_release($lock_name);
@@ -325,6 +428,40 @@ function file_dropzone_error_exit($message, $status_header = 'HTTP/1.0 400 Bad r
     header($status_header);
     print strip_tags($message);
     exit();
+}
+
+/**
+ * Clears an error against one form element.
+ *
+ * @param $name
+ *   The name of the form element.
+ */
+function _file_dropzone_form_unset_error($name) {
+  $errors = &drupal_static('form_set_error', array());
+  $removed_messages = array();
+  if (isset($errors[$name])) {
+    $removed_messages[] = $errors[$name];
+    unset($errors[$name]);
+  }
+  $_SESSION['messages']['error'] = array_diff($_SESSION['messages']['error'], $removed_messages);
+  if (empty($_SESSION['messages']['error'])) {
+    unset($_SESSION['messages']['error']);
+  }
+}
+
+/**
+ * Element validation callback to remove errors related to file uploads.
+ */
+function file_dropzone_remove_validation_errors(&$elements, &$form_state, $form) {
+  $errors = form_get_errors();
+  foreach ($form_state['file_dropzone_multiple_file_upload_names'] as $index => $file_upload_name) {
+    if (isset($errors[$file_upload_name])) {
+      // Remove the error, so other files are attached properly.
+      _file_dropzone_form_unset_error($file_upload_name);
+      // Store the error in a special form state entry.
+      $form_state['file_dropzone_errors'][$index] = $errors[$file_upload_name];
+    }
+  }
 }
 
 /**
