@@ -51,7 +51,7 @@
         }
 
         // Append empty .dz-message container to prevent dropzone from creating.
-        $field.find('.fieldset-wrapper').append('<div class="dz-default dz-message"></div>');
+        $field.find('.fieldset-wrapper:first').append('<div class="dz-default dz-message"></div>');
 
         $(this).addClass('dropzone');
         $(this).dropzone(config);
@@ -227,8 +227,8 @@
 
         // Replace the message container with a fresh copy. This goes last so
         // it consistently appears after the preview container.
-        $field.find('.fieldset-wrapper > .dz-message').remove();
-        $field.find('.fieldset-wrapper').append('<div class="dz-default dz-message"><span>' + Drupal.t('Drop files here to upload.') + '</span></div>');
+        $field.find('.fieldset-wrapper:first > .dz-message').remove();
+        $field.find('.fieldset-wrapper:first').append('<div class="dz-default dz-message"><span>' + Drupal.t('Drop files here to upload.') + '</span></div>');
 
         Drupal.behaviors.drupalDropzone.synchronizeFiles(this);
 
