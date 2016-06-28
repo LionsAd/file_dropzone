@@ -160,6 +160,13 @@
         dropzoneInstance.on('sendingmultiple', function(files, xhr, formData) {
           if (uploads == 0) {
             $field.find('.file-dropzone-browse-element').parent().hide();
+            $form
+              .find('.form-actions input.form-submit')
+              .addClass('drupal-dropzone-disabled')
+              .attr('disabled', true)
+              .css('color', '#ccc')
+              .attr('title', Drupal.t('This button has been disabled, while file operations are in progress.'));
+            $(document).trigger('drupalDropzone.disableSave', [ $form, $field, dropzoneInstance ]);
           }
           uploads++;
 
@@ -202,10 +209,19 @@
         });
 
         dropzoneInstance.on('completemultiple', function(files, response) {
-          uploads--;
+          if (uploads > 0) {
+            uploads--;
+          }
 
           if (uploads == 0) {
             $field.find('.file-dropzone-browse-element').parent().show();
+            $form
+              .find('.drupal-dropzone-disabled')
+              .removeClass('drupal-dropzone-disabled')
+              .attr('disabled', false)
+              .removeAttr('style')
+              .removeAttr('title');
+            $(document).trigger('drupalDropzone.enableSave', [ $form, $field, dropzoneInstance ]);
           }
         });
       });
