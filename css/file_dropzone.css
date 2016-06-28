@@ -28,3 +28,8 @@
   border-top: 2px solid #ccc;
   padding-top: 2em;
 }
+
+/* Hide removed files while they are being processed by the server. */
+.dz-preview[drupal-dropzone-remove="1"] {
+  display: none;
+}
