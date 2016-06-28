@@ -97,6 +97,9 @@ function file_dropzone_ajax_upload() {
     lock_wait($lock_name, 60);
   }
 
+  // Reset max execution time to ensure the lock_wait did not use too much time.
+  drupal_set_time_limit(ini_get('max_execution_time'));
+
   $results = array();
 
   if (empty($_POST['dropzone_actions'])) {
