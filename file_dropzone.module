@@ -643,7 +643,32 @@ function file_dropzone_file_field_widget_process($element, &$form_state, $form) 
   return $element;
 }
 
+/**
+ * Returns a given ini parameter value in bytes.
+ *
+ * @param string $val
+ *   The given ini parameter value.
+ *
+ * @return int
+ *   The given value in bytes.
+ *
+ * @see http://php.net/manual/de/function.ini-get.php
+ */
+function _file_dropzone_return_bytes($val) {
+    $val = trim($val);
+    $last = strtolower($val[strlen($val)-1]);
+    switch($last) {
+        // The 'G' modifier is available since PHP 5.1.0
+        case 'g':
+            $val *= 1024;
+        case 'm':
+            $val *= 1024;
+        case 'k':
+            $val *= 1024;
+    }
 
+    return $val;
+}
 
 /**
  * An element #process callback for a group of media fields.
@@ -652,6 +677,30 @@ function file_dropzone_file_field_widget_process($element, &$form_state, $form) 
  */
 function file_dropzone_field_widget_process_multiple($element, &$form_state, $form) {
   $element['#attached']['library'][] = array('file_dropzone', 'drupal_dropzone');
+
+  $post_max_size = _file_dropzone_return_bytes(ini_get('post_max_size'));
+  $max_file_uploads = _file_dropzone_return_bytes(ini_get('max_file_uploads'));
+
+  // Ensure that the values are not larger than what is allowed in php.ini.
+  $max_upload_post_size = variable_get('file_dropzone_max_upload_post_size', $post_max_size);
+  if ($max_upload_post_size > $post_max_size) {
+    $max_upload_post_size = $post_max_size;
+  }
+
+  $parallel_uploads = variable_get('file_dropzone_parallel_uploads', 5);
+  if ($parallel_uploads > $max_file_uploads) {
+    $parallel_uploads = $max_file_uploads;
+  }
+
+  $element['#attached']['js'][] = array(
+    'data' => array(
+      'file_dropzone' => array(
+        'maxUploadPostSize' => $max_upload_post_size,
+        'parallelUploads' => $parallel_uploads,
+      ),
+    ),
+    'type' => 'setting',
+  );
   $element['#attributes']['class'][] = 'drupal-dropzone';
 
   return $element;

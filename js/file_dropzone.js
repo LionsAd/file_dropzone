@@ -37,7 +37,8 @@
           paramName: 'files[dropzone_files]',
           addRemoveLinks: true,
           uploadMultiple: true,
-          parallelUploads: 5,
+          parallelUploads: settings.file_dropzone.parallelUploads,
+          maxUploadPostSize: settings.file_dropzone.maxUploadPostSize / (1024 * 1024)
         };
 
         var fileValidateSize = $fid.data('file-validate-size');
