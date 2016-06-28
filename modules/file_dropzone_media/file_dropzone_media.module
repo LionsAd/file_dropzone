@@ -9,6 +9,11 @@
  * Implements hook_field_widget_WIDGET_TYPE_form_alter().
  */
 function file_dropzone_media_field_widget_media_generic_form_alter(&$element, &$form_state, $context) {
+  // Allow individual widget instances to easily opt out of dropzone.
+  if (!empty($element['#file_dropzone_prevent'])) {
+    return;
+  }
+
   $field = $context['field'];
   $instance = $context['instance'];
 

@@ -468,6 +468,11 @@ function file_dropzone_remove_validation_errors(&$elements, &$form_state, $form)
  * Implements hook_field_widget_form_alter().
  */
 function file_dropzone_field_widget_form_alter(&$element, &$form_state, $context) {
+  // Allow individual widget instances to easily opt out of dropzone.
+  if (!empty($element['#file_dropzone_prevent'])) {
+    return;
+  }
+
   $field = $context['field'];
   $instance = $context['instance'];
 
