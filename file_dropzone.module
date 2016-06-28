@@ -273,12 +273,14 @@ function file_dropzone_ajax_upload() {
           return ($a_weight < $b_weight) ? -1 : 1;
         });
 
+        // Filter out items with no fid, but do not rekey them since field API
+        // will do that for us later on.
         $items = array_filter($items, function($item) { if (empty($item['fid'])) { return FALSE; } return TRUE; });
-        $items = array_values($items);
 
+        // Reset the weights to start at 0.
+        $weight = 0;
         foreach ($items as $delta => $item) {
-          $items[$delta] = array_intersect_key($item, array_flip(array('_weight', 'fid', 'display')));
-          $items[$delta]['_weight'] = $delta;
+          $items[$delta]['_weight'] = $weight++;
         }
 
         $items_to_add = $is_multiple_upload ? $action['upload_count'] : 1;
@@ -299,6 +301,7 @@ function file_dropzone_ajax_upload() {
             $triggering_element_name = $upload_name . '_' . $delta . '_remove_button';
             $_POST['_triggering_element_name'] = $triggering_element_name;
             $_POST['_triggering_element_value'] = t('Remove');
+            unset($_POST[$field_name][$langcode][$delta]);
             unset($_POST['files']);
             foreach (array('name', 'type', 'tmp_name', 'error', 'size', 'orig_name') as $key) {
               $_FILES['files'][$key][$file_upload_name] = '';
