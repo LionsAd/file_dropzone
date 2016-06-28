@@ -365,22 +365,27 @@ function file_dropzone_ajax_upload() {
     }
     else {
       $items_processed = $is_multiple_upload ? $action['upload_count'] : 1;
+      $success_count = 0;
       for ($i = 0; $i < $items_processed; $i++) {
         if (!empty($form_state['file_dropzone_errors'][$i])) {
           drupal_set_message($form_state['file_dropzone_errors'][$i], 'error');
           $message = theme('status_messages', array('display' => 'error'));
-          $results[$i] = array(
+          $results[] = array(
             'status' => 400,
             'message' => $message,
             'fid' => -1,
           );
         }
         else {
-          $results[$i] = array(
+          $results[] = array(
             'status' => 201,
             'message' => 'OK',
-            'fid' => !empty($form_state['values'][$field_name][$langcode][$current_file_count + $i]['fid']) ? $form_state['values'][$field_name][$langcode][$current_file_count + $i]['fid'] : '',
+            // Only successful uploads make it into $form_state['values'], so
+            // only increment the key that is searched for when an upload is
+            // successful.
+            'fid' => !empty($form_state['values'][$field_name][$langcode][$current_file_count + $success_count]['fid']) ? $form_state['values'][$field_name][$langcode][$current_file_count + $success_count]['fid'] : '',
           );
+          $success_count++;
         }
       }
     }
